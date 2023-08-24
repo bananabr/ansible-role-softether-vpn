@@ -1,70 +1,66 @@
 - name: Install required packages
-  yum:
+  apt:
     name:
-      - openssl-devel
-      - readline-devel
-      - ncurses-devel
+      - build-essential
+      - gnupg2
       - gcc
-      - "@Development Tools"
-      - unzip
+    update_cache: yes
+    state: present
 
-- name: Create sources root directory
-  file:
-    path: "{{ vpn_src_root_path }}"
-    state: directory
+- name: Download SoftEther VPN Server package
+  get_url:
+    url: "https://www.softether-download.com/files/softether/v4.42-9798-rtm-2023.06.30-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.42-9798-rtm-2023.06.30-linux-x64-64bit.tar.gz"
+    dest: /tmp/softether-vpnserver.tar.gz
 
-- name: Download and unpack source archive
+- name: Extract SoftEther VPN Server package
   unarchive:
-    src: "https://github.com/SoftEtherVPN/SoftEtherVPN_Stable/archive/v{{ vpn_version }}.zip"
-    dest: "{{ vpn_src_root_path }}"
-    remote_src: true
-    creates: "{{ vpn_src_path }}/configure"
+    src: /tmp/softether-vpnserver.tar.gz
+    dest: /opt
+    remote_src: yes
 
-- name: Configure, make and install binaries
-  shell: ./configure && make install
+- name: Run make command to build SoftEther VPN Server
+  command: make
   args:
-    chdir: "{{ vpn_src_path }}"
-    creates: "{{ vpn_root }}/vpnserver"
+    chdir: /opt/vpnserver
 
-- name: Check vpnserver config file
-  stat:
-    path: "{{ vpn_root }}/vpn_server.config"
-  register: vpn_config
+- name: Change file ownership, group and permissions
+  ansible.builtin.file:
+    path: /opt/vpnserver
+    recurse: true
+    mode: "0600"
+- name: Change file ownership, group and permissions
+  ansible.builtin.file:
+    path: /opt/vpnserver/vpnserver
+    mode: "0700"
+- name: Change file ownership, group and permissions
+  ansible.builtin.file:
+    path: /opt/vpnserver/vpncmd
+    mode: "0700"
 
-- name: Install SystemD service for server
+- name: Copy vpn_server.sh script to /etc/init.d/vpnserver
   copy:
-    src: "{{ vpn_src_path }}/systemd/softether-vpnserver.service"
-    dest: "/etc/systemd/system/vpnserver.service"
-    remote_src: true
+    src: files/vpn_server.sh
+    dest: /etc/init.d/vpnserver
+    mode: "0755"
 
-- name: Correct pathes in the SystemD service file
-  replace:
-    path: "/etc/systemd/system/vpnserver.service"
-    regexp: "/opt/vpnserver"
-    replace: "{{ vpn_root }}"
-
-- name: Update SystemD service
-  systemd:
-    daemon_reload: yes
-
-- name: Configure vpnserver
-  include: configure.yml
-
-- name: Enable SystemD service on boot
-  service:
+- name: Make sure vpnserver is started on boot
+  sysvinit:
     name: vpnserver
     state: started
     enabled: yes
 
-- name: Open TCP ports
-  shell: "firewall-cmd --zone=public --add-port={{ item }}/tcp --permanent"
-  with_items: "{{ vpn_tcp_ports }}"
-  notify:
-    - restart firewalld
+- name: Enable IP Forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    state: present
 
-- name: Open UDP ports
-  shell: "firewall-cmd --zone=public --add-port={{ item }}/udp --permanent"
-  with_items: "{{ vpn_udp_ports }}"
-  notify:
-    - restart firewalld
+- name: Configure IP Forwarding Persistently
+  lineinfile:
+    path: /etc/sysctl.conf
+    line: "net.ipv4.ip_forward = 1"
+    create: yes # Add the line if not present
 
+- name: Configure vpnserver
+  include_tasks:
+    file: configure.yml

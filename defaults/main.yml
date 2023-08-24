@@ -41,7 +41,7 @@ vpn_src_path: "{{ vpn_src_root_path }}/SoftEtherVPN_Stable-{{ vpn_version }}"
 
 vpn_root: "/usr/vpnserver"
 
-vpn_vpncmd: "/usr/bin/vpncmd localhost /server /csv"
+vpn_vpncmd: "/opt/vpnserver/vpncmd localhost:5555 /server /csv"
 
 vpn_hub:
   name: default
