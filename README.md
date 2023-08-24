@@ -7,7 +7,7 @@ Ansible role for SoftEther VPN server
   vars_files:
     - vars/vpn.yml
   roles:
-    - { role: lda.ansible-softether-vpn }
+    - { role: ansible-softether-vpn }
 ```
 
 Inside `vars/vpn.yml`:
